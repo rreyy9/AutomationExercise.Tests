@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+  </Folder>
   <Project Path="AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj" Id="cf06850a-7018-4c8f-b69a-337599ca9e75" />
   <Project Path="AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj" />
 </Solution>
