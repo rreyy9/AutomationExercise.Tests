@@ -51,11 +51,14 @@ jobs:
       - name: Restore NuGet packages
         run: dotnet restore AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj
 
-      - name: Build (installs Playwright browsers via post-build target)
+      - name: Build
         run: dotnet build AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj --no-restore --configuration Release
-        # The InstallPlaywrightBrowsers MSBuild target runs automatically after build.
-        # It executes: pwsh playwright.ps1 install --with-deps
-        # pwsh (PowerShell 7) is pre-installed on ubuntu-latest runners.
+
+      - name: Install Playwright browsers
+        run: pwsh AutomationExercise.UI.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps
+        # Explicit install after Release build. The MSBuild post-build target uses the
+        # Debug path and is unreliable in CI where we build Release — so we install
+        # directly here instead.
 
       - name: Determine test filter
         id: filter

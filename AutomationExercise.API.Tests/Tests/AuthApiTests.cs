@@ -23,6 +23,7 @@ namespace AutomationExercise.API.Tests.Tests
     /// </summary>
     [TestClass]
     [TestCategory("Regression")]
+    [DoNotParallelize] // depends on AccountLifecycleTests.ClassInitialize having run first
     public class AuthApiTests : BaseApiTest
     {
         // These credentials are created by AccountLifecycleTests.ClassInitialize
