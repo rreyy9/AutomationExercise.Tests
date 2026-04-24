@@ -5,12 +5,34 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: "Which suite to run"
+        required: true
+        default: "Smoke"
+        type: choice
+        options:
+          - Smoke
+          - Regression
+          - All
+      project:
+        description: "Which project to run"
+        required: true
+        default: "Both"
+        type: choice
+        options:
+          - Both
+          - UI
+          - API
 
 jobs:
   # ── UI Tests ────────────────────────────────────────────────────────────────
   ui-tests:
-    name: UI Tests (${{ github.event_name == 'pull_request' && 'Regression' || 'Smoke' }})
+    name: UI Tests
     runs-on: ubuntu-latest
+    # Skip this job if manually triggered with project=API
+    if: github.event.inputs.project != 'API'
 
     env:
       DOTNET_ENVIRONMENT: ci
@@ -35,31 +57,52 @@ jobs:
         # It executes: pwsh playwright.ps1 install --with-deps
         # pwsh (PowerShell 7) is pre-installed on ubuntu-latest runners.
 
-      - name: Run Smoke tests (push to main)
-        if: github.event_name == 'push'
+      - name: Determine test filter
+        id: filter
         run: |
+          EVENT="${{ github.event_name }}"
+          SUITE="${{ github.event.inputs.test_suite }}"
+
+          if [ "$EVENT" = "pull_request" ]; then
+            # Full regression suite on every PR
+            echo "filter=TestCategory=Regression|TestCategory=Smoke" >> $GITHUB_OUTPUT
+            echo "label=Regression" >> $GITHUB_OUTPUT
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$SUITE" = "Regression" ]; then
+            echo "filter=TestCategory=Regression|TestCategory=Smoke" >> $GITHUB_OUTPUT
+            echo "label=Regression" >> $GITHUB_OUTPUT
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$SUITE" = "All" ]; then
+            # Empty filter = run everything
+            echo "filter=" >> $GITHUB_OUTPUT
+            echo "label=All" >> $GITHUB_OUTPUT
+          else
+            # Default: push to main or manual Smoke selection
+            echo "filter=TestCategory=Smoke" >> $GITHUB_OUTPUT
+            echo "label=Smoke" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run UI tests (${{ steps.filter.outputs.label }})
+        run: |
+          FILTER="${{ steps.filter.outputs.filter }}"
+
+          # Build the optional --filter argument only when a filter is set.
+          # When FILTER is empty (suite=All), no --filter flag is passed and
+          # every discovered test runs.
+          if [ -n "$FILTER" ]; then
+            FILTER_ARG="--filter $FILTER"
+          else
+            FILTER_ARG=""
+          fi
+
           dotnet run \
             --project AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj \
             --no-build \
             --configuration Release \
             -- \
-            --filter "TestCategory=Smoke" \
+            $FILTER_ARG \
             --report-trx \
-            --report-trx-filename ui-smoke-results.trx
+            --report-trx-filename ui-results.trx
         # Note: everything after '--' is passed to the MSTest runner, not dotnet run.
         # DOTNET_ENVIRONMENT=ci activates appsettings.ci.json (Headless=true, Timeout=60000).
-
-      - name: Run Regression tests (pull request)
-        if: github.event_name == 'pull_request'
-        run: |
-          dotnet run \
-            --project AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj \
-            --no-build \
-            --configuration Release \
-            -- \
-            --filter "TestCategory=Regression|TestCategory=Smoke" \
-            --report-trx \
-            --report-trx-filename ui-regression-results.trx
 
       - name: Upload TRX test results
         if: always()
@@ -75,16 +118,20 @@ jobs:
         with:
           name: ui-failure-artifacts
           path: |
-            ${{ runner.temp }}/pw-screenshots/**
-            ${{ runner.temp }}/pw-traces/**
-            ${{ runner.temp }}/pw-video/**
+            /tmp/pw-screenshots/**
+            /tmp/pw-traces/**
+            /tmp/pw-video/**
+          # Path.GetTempPath() resolves to /tmp on Linux (ubuntu-latest runners).
+          # This is distinct from ${{ runner.temp }} which is /home/runner/work/_temp.
           retention-days: 7
           if-no-files-found: ignore
 
   # ── API Tests ───────────────────────────────────────────────────────────────
   api-tests:
-    name: API Tests (${{ github.event_name == 'pull_request' && 'Regression' || 'Smoke' }})
+    name: API Tests
     runs-on: ubuntu-latest
+    # Skip this job if manually triggered with project=UI
+    if: github.event.inputs.project != 'UI'
 
     env:
       DOTNET_ENVIRONMENT: ci
@@ -106,10 +153,11 @@ jobs:
       - name: Build
         run: dotnet build AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj --no-restore --configuration Release
 
-      - name: Run API tests (push — Smoke / all on PR)
-        # All API tests are tagged Regression. On push, we run a targeted subset;
-        # on PR, we run everything. API tests have no browser overhead so the full
-        # suite is fast regardless.
+      - name: Run API tests
+        # API tests are all tagged Regression and run fast — no browser overhead.
+        # We run the full suite regardless of trigger type. The suite is self-contained:
+        # AccountLifecycleTests.ClassInitialize creates its account and ClassCleanup
+        # deletes it, so repeated runs against the live site are safe.
         run: |
           dotnet run \
             --project AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj \
