@@ -27,7 +27,6 @@
 
 	<ItemGroup>
 		<Folder Include="Fixtures\" />
-		<Folder Include="Pages\" />
 		<Folder Include="TestData\" />
 		<Folder Include="Tests\Auth\" />
 		<Folder Include="Tests\Cart\" />
