@@ -64,6 +64,7 @@
         // ── Newsletter subscription from homepage ─────────────────────────────────
 
         [TestMethod]
+        [Retry(1)] // Retry once — the subscription confirmation widget can be slow on first response from the live site
         public async Task Newsletter_SubscribeFromHomepage_ShowsSuccessMessage()
         {
             Log.Step("Navigating to homepage");
@@ -85,6 +86,7 @@
         // ── Newsletter subscription from cart page ────────────────────────────────
 
         [TestMethod]
+        [Retry(1)] // Retry once — same footer subscription widget as homepage; same external latency risk
         public async Task Newsletter_SubscribeFromCartPage_ShowsSuccessMessage()
         {
             Log.Step("Navigating to cart page");

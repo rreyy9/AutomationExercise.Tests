@@ -69,6 +69,10 @@
             var card = _productCards.Nth(index);
             await card.HoverAsync();
             await card.Locator("a.add-to-cart").First.ClickAsync();
+            var modal = page.Locator("div#cartModal");
+            await modal.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible });
+            await page.Locator("div#cartModal button.close-modal").ClickAsync();
+            await modal.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
         }
 
         // ── Category filters ──────────────────────────────────────────────────────

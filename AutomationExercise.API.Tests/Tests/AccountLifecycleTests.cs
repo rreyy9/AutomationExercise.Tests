@@ -28,6 +28,7 @@ namespace AutomationExercise.API.Tests.Tests
     /// </summary>
     [TestClass]
     [TestCategory("Regression")]
+    [DoNotParallelize] // ClassInitialize/ClassCleanup manage shared static state and coordinate with AuthApiTests — unsafe to run concurrently with other classes
     public class AccountLifecycleTests
     {
         // Shared with AuthApiTests.VerifyLogin_WithValidCredentials_ReturnsSuccess

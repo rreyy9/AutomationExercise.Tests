@@ -22,8 +22,8 @@
             await _productsPage.AddProductToCartAsync(0);
 
             Log.Step("Navigating to cart");
-            var cartPage = await Page.GotoAsync("/view_cart")
-                .ContinueWith(_ => new CartPage(Page));
+            await Page.GotoAsync("/view_cart");
+            var cartPage = new CartPage(Page);
 
             Log.Step("Asserting cart has an item");
             Assert.IsTrue(await cartPage.IsCartTableVisibleAsync(),

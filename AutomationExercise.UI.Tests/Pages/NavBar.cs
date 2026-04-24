@@ -6,7 +6,7 @@
         private readonly ILocator _logo = page.Locator("img[src*='logo']");
         private readonly ILocator _homeLink = page.Locator("a[href='/']").First;
         private readonly ILocator _productsLink = page.Locator("a[href='/products']");
-        private readonly ILocator _cartLink = page.Locator("a[href='/view_cart']");
+        private readonly ILocator _cartLink = page.Locator("#header a[href='/view_cart']");
         private readonly ILocator _loginLink = page.Locator("a[href='/login']");
         private readonly ILocator _logoutLink = page.Locator("a[href='/logout']");
         private readonly ILocator _deleteAcctLink = page.Locator("a[href='/delete_account']");

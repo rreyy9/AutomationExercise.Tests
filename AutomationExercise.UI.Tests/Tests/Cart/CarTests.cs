@@ -131,10 +131,7 @@
             await _productsPage.GoToAsync();
             await _productsPage.AddProductToCartAsync(0);
 
-            // Continue shopping and add a second product
-            // The modal appears after the first add — dismiss it then add the second
-            Log.Step("Dismissing modal and adding second product");
-            await Page.Locator("div#cartModal button.close-modal").ClickAsync();
+            Log.Step("Adding second product");
             await _productsPage.AddProductToCartAsync(1);
 
             Log.Step("Navigating to cart");
