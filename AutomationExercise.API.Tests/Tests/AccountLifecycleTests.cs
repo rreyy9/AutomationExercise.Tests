@@ -7,9 +7,9 @@ namespace AutomationExercise.API.Tests.Tests
     /// <summary>
     /// Full account lifecycle test suite: create → update → read → delete.
     ///
-    /// Data strategy — Option B: shared fixture via ClassInitialize/ClassCleanup.
+    /// Data strategy: shared fixture via ClassInitialize/ClassCleanup.
     ///
-    /// Why Option B over a single ordered test method:
+    /// Why ClassInitialize/ClassCleanup over a single ordered test method:
     ///   - Account creation and deletion are infrastructure concerns, not test
     ///     assertions. ClassInitialize/ClassCleanup is the correct MSTest hook for
     ///     this — it mirrors how real teams manage test fixtures.
@@ -19,8 +19,8 @@ namespace AutomationExercise.API.Tests.Tests
     ///     a single ordered method would leave a dangling account on the live site
     ///     if the update or read assertion threw.
     ///
-    /// Account credentials are shared with AuthApiTests so the valid-login test
-    /// can exercise the same account without creating a second throwaway user.
+    /// This class is fully self-contained — it owns its own account credentials
+    /// and does not share state with any other test class.
     ///
     /// NOTE: ClassInitialize is static in MSTest — ApiClient is instantiated
     /// directly here rather than relying on the BaseApiTest instance property,
@@ -28,17 +28,13 @@ namespace AutomationExercise.API.Tests.Tests
     /// </summary>
     [TestClass]
     [TestCategory("Regression")]
-    [DoNotParallelize] // ClassInitialize/ClassCleanup manage shared static state and coordinate with AuthApiTests — unsafe to run concurrently with other classes
+    [DoNotParallelize] // ClassInitialize/ClassCleanup manage shared static state — unsafe to run concurrently
     public class AccountLifecycleTests
     {
-        // Shared with AuthApiTests.VerifyLogin_WithValidCredentials_ReturnsSuccess
-        private const string Email = AuthApiTests.TestEmail;
-        private const string Password = AuthApiTests.TestPassword;
+        private const string Email = "playwright.lifecycle.test@example.com";
+        private const string Password = "LifecycleTest1234!";
 
-        // Static ApiClient for ClassInitialize/ClassCleanup (static context)
         private static ApiClient _staticApi = null!;
-
-        // Instance ApiClient for [TestMethod]s — populated in [TestInitialize]
         private ApiClient _api = null!;
 
         public TestContext TestContext { get; set; } = null!;
@@ -51,9 +47,17 @@ namespace AutomationExercise.API.Tests.Tests
             var config = ApiTestConfig.Load();
             _staticApi = new ApiClient(config.BaseUrl, config.Timeout);
 
+            // Clean up any leftover account from a previous interrupted run
+            // before attempting creation — makes the suite idempotent.
+            await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+            {
+                { "email",    Email },
+                { "password", Password }
+            });
+
             var response = await _staticApi.PostFormAsync("/api/createAccount", new Dictionary<string, string>
             {
-                { "name",          "Playwright API" },
+                { "name",          "Playwright Lifecycle" },
                 { "email",         Email },
                 { "password",      Password },
                 { "title",         "Mr" },
@@ -61,7 +65,7 @@ namespace AutomationExercise.API.Tests.Tests
                 { "birth_month",   "6" },
                 { "birth_year",    "1990" },
                 { "firstname",     "Playwright" },
-                { "lastname",      "API" },
+                { "lastname",      "Lifecycle" },
                 { "company",       "Test Suite Ltd" },
                 { "address1",      "123 Automation Street" },
                 { "address2",      "Suite 1" },
@@ -73,49 +77,10 @@ namespace AutomationExercise.API.Tests.Tests
             });
 
             var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
-
-            // If the account already exists from a previous interrupted run,
-            // responseCode will be 400. Delete it and recreate to keep the suite
-            // idempotent across repeated runs.
-            if (body.ResponseCode == 400)
-            {
-                await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
-                {
-                    { "email",    Email },
-                    { "password", Password }
-                });
-
-                var retryResponse = await _staticApi.PostFormAsync("/api/createAccount", new Dictionary<string, string>
-                {
-                    { "name",          "Playwright API" },
-                    { "email",         Email },
-                    { "password",      Password },
-                    { "title",         "Mr" },
-                    { "birth_date",    "15" },
-                    { "birth_month",   "6" },
-                    { "birth_year",    "1990" },
-                    { "firstname",     "Playwright" },
-                    { "lastname",      "API" },
-                    { "company",       "Test Suite Ltd" },
-                    { "address1",      "123 Automation Street" },
-                    { "address2",      "Suite 1" },
-                    { "country",       "United Kingdom" },
-                    { "zipcode",       "SW1A 1AA" },
-                    { "state",         "England" },
-                    { "city",          "London" },
-                    { "mobile_number", "07700900000" }
-                });
-
-                var retryBody = await ApiClient.DeserialiseAsync<ApiResponse>(retryResponse);
-                if (retryBody.ResponseCode != 201)
-                    throw new InvalidOperationException(
-                        $"ClassInitialize: account creation failed after cleanup. responseCode={retryBody.ResponseCode}, message={retryBody.Message}");
-            }
-            else if (body.ResponseCode != 201)
-            {
+            if (body.ResponseCode != 201)
                 throw new InvalidOperationException(
-                    $"ClassInitialize: account creation failed. responseCode={body.ResponseCode}, message={body.Message}");
-            }
+                    $"AccountLifecycleTests.ClassInitialize: account creation failed. " +
+                    $"responseCode={body.ResponseCode}, message={body.Message}");
         }
 
         [ClassCleanup]
@@ -156,16 +121,16 @@ namespace AutomationExercise.API.Tests.Tests
         [TestMethod]
         public async Task CreateAccount_AccountExistsAfterCreation()
         {
-            // Verify the account created in ClassInitialize is retrievable.
             var response = await _api.GetAsync($"/api/getUserDetailByEmail?email={Uri.EscapeDataString(Email)}");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithUser>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
                 $"Expected responseCode 200 confirming account exists after creation. " +
                 $"Got {body.ResponseCode}: {body.Message}");
-            Assert.IsNotNull(body.User, "Expected user detail to be returned after account creation");
+            Assert.IsNotNull(body.User,
+                "Expected user detail to be returned after account creation");
             Assert.AreEqual(Email, body.User.Email,
-                $"Expected returned email to match created account email");
+                "Expected returned email to match created account email");
         }
 
         // ── updateAccount ─────────────────────────────────────────────────────────
@@ -175,7 +140,7 @@ namespace AutomationExercise.API.Tests.Tests
         {
             var response = await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
             {
-                { "name",          "Playwright API" },
+                { "name",          "Playwright Lifecycle" },
                 { "email",         Email },
                 { "password",      Password },
                 { "title",         "Mr" },
@@ -183,7 +148,7 @@ namespace AutomationExercise.API.Tests.Tests
                 { "birth_month",   "6" },
                 { "birth_year",    "1990" },
                 { "firstname",     "Playwright" },
-                { "lastname",      "API" },
+                { "lastname",      "Lifecycle" },
                 { "company",       "Updated Suite Ltd" },
                 { "address1",      "456 Updated Street" },
                 { "address2",      "" },
@@ -209,7 +174,7 @@ namespace AutomationExercise.API.Tests.Tests
             // Update city to a known value
             await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
             {
-                { "name",          "Playwright API" },
+                { "name",          "Playwright Lifecycle" },
                 { "email",         Email },
                 { "password",      Password },
                 { "title",         "Mr" },
@@ -217,7 +182,7 @@ namespace AutomationExercise.API.Tests.Tests
                 { "birth_month",   "6" },
                 { "birth_year",    "1990" },
                 { "firstname",     "Playwright" },
-                { "lastname",      "API" },
+                { "lastname",      "Lifecycle" },
                 { "company",       "Updated Suite Ltd" },
                 { "address1",      "456 Updated Street" },
                 { "address2",      "" },
@@ -234,12 +199,13 @@ namespace AutomationExercise.API.Tests.Tests
 
             Assert.AreEqual(200, readBody.ResponseCode,
                 $"Expected responseCode 200 on read after update but got {readBody.ResponseCode}");
-            Assert.IsNotNull(readBody.User, "Expected user detail to be present after update");
+            Assert.IsNotNull(readBody.User,
+                "Expected user detail to be present after update");
             Assert.AreEqual("Manchester", readBody.User.City,
                 $"Expected city to be 'Manchester' after update but got '{readBody.User.City}'");
         }
 
-        // ── getUserDetailByEmail ───────────────────────────────────────────────────
+        // ── getUserDetailByEmail ──────────────────────────────────────────────────
 
         [TestMethod]
         public async Task GetUserDetailByEmail_ReturnsCorrectUserData()
@@ -271,20 +237,25 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         // ── deleteAccount ─────────────────────────────────────────────────────────
-        // Actual deletion is performed by ClassCleanup to guarantee it always runs.
-        // This test verifies the delete endpoint returns 200 on a valid request by
-        // making a separate call against a second throwaway account, then verifying
-        // the primary account is still present for the remaining test methods.
+        // Actual deletion of the fixture account is performed by ClassCleanup to
+        // guarantee it always runs. This test exercises the delete endpoint in
+        // isolation using a separate throwaway account so it doesn't interfere
+        // with the other test methods that depend on the fixture account existing.
 
         [TestMethod]
         public async Task DeleteAccount_ReturnsSuccess()
         {
-            // Create a second throwaway account purely to exercise the delete endpoint
-            // in isolation without touching the shared fixture account.
-            const string throwawayEmail = "playwright.api.delete.test@example.com";
+            const string throwawayEmail = "playwright.lifecycle.delete.test@example.com";
             const string throwawayPassword = "DeleteTest1234!";
 
-            // Create
+            // Clean up any previous leftover first
+            await _api.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+            {
+                { "email",    throwawayEmail },
+                { "password", throwawayPassword }
+            });
+
+            // Create a fresh throwaway account
             await _api.PostFormAsync("/api/createAccount", new Dictionary<string, string>
             {
                 { "name",          "Delete Test" },
@@ -306,7 +277,7 @@ namespace AutomationExercise.API.Tests.Tests
                 { "mobile_number", "07700900002" }
             });
 
-            // Delete
+            // Delete and assert
             var deleteResponse = await _api.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
             {
                 { "email",    throwawayEmail },

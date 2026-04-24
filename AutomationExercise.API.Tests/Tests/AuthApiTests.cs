@@ -1,36 +1,87 @@
 ﻿using AutomationExercise.API.Tests.Clients;
 using AutomationExercise.API.Tests.Models;
+using AutomationExercise.API.Tests.Utils;
 
 namespace AutomationExercise.API.Tests.Tests
 {
     /// <summary>
     /// Tests for the /api/verifyLogin endpoint.
     ///
-    /// These tests use the credentials created by AccountLifecycleTests via
-    /// ClassInitialize. Because ClassInitialize runs before any test in that class,
-    /// and both test classes are independent, AuthApiTests uses its own fixed
-    /// test account credentials.
-    ///
-    /// The valid-credentials tests depend on an account existing with these
-    /// credentials on the live site. If the site resets, these will fail with
-    /// responseCode 404 — the invalid-credentials and DELETE tests will still pass.
-    ///
-    /// NOTE: The valid-login test shares credentials with AccountLifecycleTests
-    /// to avoid creating a second throwaway account. AccountLifecycleTests
-    /// guarantees cleanup via ClassCleanup, so these credentials are only valid
-    /// during a test run that includes AccountLifecycleTests. Run both classes
-    /// together for a complete suite run.
+    /// This class manages its own throwaway account via ClassInitialize/ClassCleanup
+    /// so it has zero dependency on AccountLifecycleTests or execution order.
+    /// Previously it shared credentials with AccountLifecycleTests, which caused a
+    /// race condition under parallel execution — the account might not exist yet
+    /// when VerifyLogin_WithValidCredentials ran. Self-contained fixture eliminates
+    /// that entirely.
     /// </summary>
     [TestClass]
     [TestCategory("Regression")]
-    [DoNotParallelize] // depends on AccountLifecycleTests.ClassInitialize having run first
+    [DoNotParallelize] // ClassInitialize/ClassCleanup manage shared static state — unsafe to run concurrently
     public class AuthApiTests : BaseApiTest
     {
-        // These credentials are created by AccountLifecycleTests.ClassInitialize
-        // and deleted by AccountLifecycleTests.ClassCleanup.
-        // Run the full suite to exercise the valid-login path end-to-end.
-        internal const string TestEmail = "playwright.api.test@example.com";
-        internal const string TestPassword = "ApiTest1234!";
+        private const string TestEmail = "playwright.auth.verify.test@example.com";
+        private const string TestPassword = "AuthTest1234!";
+
+        private static ApiClient _staticApi = null!;
+
+        // ── Fixture setup ─────────────────────────────────────────────────────────
+
+        [ClassInitialize]
+        public static async Task ClassInitialize(TestContext _)
+        {
+            var config = ApiTestConfig.Load();
+            _staticApi = new ApiClient(config.BaseUrl, config.Timeout);
+
+            // Clean up any leftover account from a previous interrupted run
+            await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+            {
+                { "email",    TestEmail },
+                { "password", TestPassword }
+            });
+
+            // Create the account this class needs
+            var response = await _staticApi.PostFormAsync("/api/createAccount", new Dictionary<string, string>
+            {
+                { "name",          "Auth Verify Test" },
+                { "email",         TestEmail },
+                { "password",      TestPassword },
+                { "title",         "Mr" },
+                { "birth_date",    "1" },
+                { "birth_month",   "1" },
+                { "birth_year",    "1990" },
+                { "firstname",     "Auth" },
+                { "lastname",      "Test" },
+                { "company",       "" },
+                { "address1",      "1 Test Street" },
+                { "address2",      "" },
+                { "country",       "United Kingdom" },
+                { "zipcode",       "SW1A 1AA" },
+                { "state",         "England" },
+                { "city",          "London" },
+                { "mobile_number", "07700900000" }
+            });
+
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+            if (body.ResponseCode != 201)
+                throw new InvalidOperationException(
+                    $"AuthApiTests.ClassInitialize: account creation failed. " +
+                    $"responseCode={body.ResponseCode}, message={body.Message}");
+        }
+
+        [ClassCleanup]
+        public static async Task ClassCleanup()
+        {
+            if (_staticApi is not null)
+            {
+                await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+                {
+                    { "email",    TestEmail },
+                    { "password", TestPassword }
+                });
+
+                _staticApi.Dispose();
+            }
+        }
 
         // ── POST /api/verifyLogin — valid credentials ─────────────────────────────
 
@@ -39,7 +90,7 @@ namespace AutomationExercise.API.Tests.Tests
         {
             var response = await Api.PostFormAsync("/api/verifyLogin", new Dictionary<string, string>
             {
-                { "email", TestEmail },
+                { "email",    TestEmail },
                 { "password", TestPassword }
             });
 
@@ -47,8 +98,7 @@ namespace AutomationExercise.API.Tests.Tests
 
             Assert.AreEqual(200, body.ResponseCode,
                 $"Expected responseCode 200 for valid credentials but got {body.ResponseCode}. " +
-                $"Message: {body.Message}. " +
-                "Note: This test requires AccountLifecycleTests to have run first to create the account.");
+                $"Message: {body.Message}");
         }
 
         // ── POST /api/verifyLogin — invalid credentials ───────────────────────────
@@ -58,7 +108,7 @@ namespace AutomationExercise.API.Tests.Tests
         {
             var response = await Api.PostFormAsync("/api/verifyLogin", new Dictionary<string, string>
             {
-                { "email", "notareal@user.com" },
+                { "email",    "notareal@user.com" },
                 { "password", "wrongpassword" }
             });
 
@@ -76,7 +126,7 @@ namespace AutomationExercise.API.Tests.Tests
         {
             var response = await Api.PostFormAsync("/api/verifyLogin", new Dictionary<string, string>
             {
-                { "email", "notareal@user.com" },
+                { "email",    "notareal@user.com" },
                 { "password", "wrongpassword" }
             });
 
@@ -90,7 +140,6 @@ namespace AutomationExercise.API.Tests.Tests
         //
         // The API explicitly documents that DELETE is not a supported method on
         // this endpoint. The responseCode in the body should be 405.
-        // This test confirms the API correctly rejects unsupported HTTP methods.
 
         [TestMethod]
         public async Task VerifyLogin_WithDeleteMethod_ReturnsMethodNotAllowed()
