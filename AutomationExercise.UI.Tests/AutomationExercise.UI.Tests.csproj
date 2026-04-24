@@ -17,6 +17,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="appsettings.ci.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
 		<Folder Include="Fixtures\" />
 		<Folder Include="Pages\" />
 		<Folder Include="TestData\" />
@@ -25,12 +34,10 @@
 		<Folder Include="Tests\Checkout\" />
 		<Folder Include="Tests\Contact\" />
 		<Folder Include="Tests\Products\" />
-		<Folder Include="Utils\" />
 	</ItemGroup>
 
 	<Target Name="InstallPlaywrightBrowsers" AfterTargets="Build">
-		<Exec Command="pwsh -File &quot;$(MSBuildProjectDirectory)\bin\Debug\$(TargetFramework)\playwright.ps1&quot; install --with-deps"
-			  ContinueOnError="true" />
+		<Exec Command="pwsh -File &quot;$(MSBuildProjectDirectory)\bin\Debug\$(TargetFramework)\playwright.ps1&quot; install --with-deps" ContinueOnError="true" />
 	</Target>
 
 </Project>
