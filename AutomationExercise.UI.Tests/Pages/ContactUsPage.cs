@@ -20,7 +20,7 @@
         private readonly ILocator _submitButton = page.Locator("input[data-qa='submit-button']");
 
         private readonly ILocator _successMessage = page.Locator("div.status.alert.alert-success");
-        private readonly ILocator _homeButton = page.Locator("a:has-text('Home')");
+        private readonly ILocator _homeButton = page.Locator("a.btn-success:has-text('Home')");
 
         // ── Navigation ────────────────────────────────────────────────────────────
         public async Task GoToAsync()

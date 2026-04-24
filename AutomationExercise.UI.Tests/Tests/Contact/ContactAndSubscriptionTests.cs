@@ -102,8 +102,9 @@
             var successMessage = Page.Locator("div#success-subscribe");
 
             await subscribeEmail.ScrollIntoViewIfNeededAsync();
-            await subscribeEmail.FillAsync("playwright.cart.test@example.com");
-            await subscribeButton.ClickAsync();
+            await Page.Keyboard.PressAsync("Escape");  // add this line
+            await subscribeEmail.FillAsync("playwright.cart.test@example.com", new LocatorFillOptions { Force = true });
+            await subscribeButton.ClickAsync(new LocatorClickOptions { Force = true });
 
             Log.Step("Asserting subscription success message is visible");
             await Microsoft.Playwright.Assertions.Expect(successMessage).ToBeVisibleAsync();

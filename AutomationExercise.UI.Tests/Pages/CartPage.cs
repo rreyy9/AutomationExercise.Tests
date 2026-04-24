@@ -33,7 +33,11 @@
             => await Row(rowIndex).Locator("td.cart_total p").InnerTextAsync();
 
         public async Task RemoveItemAsync(int rowIndex = 0)
-            => await Row(rowIndex).Locator("td.cart_delete a.cart_quantity_delete").ClickAsync();
+        {
+            var row = Row(rowIndex);
+            await row.Locator("td.cart_delete a.cart_quantity_delete").ClickAsync();
+            await row.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Detached });
+        }
 
         // ── Bulk helpers ──────────────────────────────────────────────────────────
         public async Task<int> GetItemCountAsync()

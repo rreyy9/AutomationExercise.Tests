@@ -35,9 +35,11 @@
         // ── Subscription ────────────────────────────────────────────────────────
         public async Task SubscribeAsync(string email)
         {
+            // Dismiss any ad overlay that may be intercepting pointer events in CI
+            await page.Keyboard.PressAsync("Escape");
             await _subscribeEmail.ScrollIntoViewIfNeededAsync();
-            await _subscribeEmail.FillAsync(email);
-            await _subscribeButton.ClickAsync();
+            await _subscribeEmail.FillAsync(email, new LocatorFillOptions { Force = true });
+            await _subscribeButton.ClickAsync(new LocatorClickOptions { Force = true });
         }
 
         public async Task<string> GetSubscriptionSuccessMessageAsync()

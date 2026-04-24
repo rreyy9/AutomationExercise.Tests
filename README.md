@@ -1,6 +1,6 @@
 # AutomationExercise.Tests
 
-![CI](https://github.com/<rreyy9>/AutomationExercise.Tests/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/rreyy9/AutomationExercise.Tests/actions/workflows/ci.yml/badge.svg)
 
 A portfolio-grade test automation suite covering the [Automation Exercise](https://automationexercise.com) demo e-commerce site. Built with Playwright + C# + MSTest on .NET 10 LTS, it demonstrates real-world patterns across UI end-to-end testing and REST API testing — including the Page Object Model, typed API clients, parallel execution, failure artifact capture, and a GitHub Actions CI/CD pipeline.
 
