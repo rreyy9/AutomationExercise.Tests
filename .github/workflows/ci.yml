@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── UI Tests ────────────────────────────────────────────────────────────────
+  ui-tests:
+    name: UI Tests (${{ github.event_name == 'pull_request' && 'Regression' || 'Smoke' }})
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_ENVIRONMENT: ci
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet packages
+        run: dotnet restore AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj
+
+      - name: Build (installs Playwright browsers via post-build target)
+        run: dotnet build AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj --no-restore --configuration Release
+        # The InstallPlaywrightBrowsers MSBuild target runs automatically after build.
+        # It executes: pwsh playwright.ps1 install --with-deps
+        # pwsh (PowerShell 7) is pre-installed on ubuntu-latest runners.
+
+      - name: Run Smoke tests (push to main)
+        if: github.event_name == 'push'
+        run: |
+          dotnet run \
+            --project AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            -- \
+            --filter "TestCategory=Smoke" \
+            --report-trx \
+            --report-trx-filename ui-smoke-results.trx
+        # Note: everything after '--' is passed to the MSTest runner, not dotnet run.
+        # DOTNET_ENVIRONMENT=ci activates appsettings.ci.json (Headless=true, Timeout=60000).
+
+      - name: Run Regression tests (pull request)
+        if: github.event_name == 'pull_request'
+        run: |
+          dotnet run \
+            --project AutomationExercise.UI.Tests/AutomationExercise.UI.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            -- \
+            --filter "TestCategory=Regression|TestCategory=Smoke" \
+            --report-trx \
+            --report-trx-filename ui-regression-results.trx
+
+      - name: Upload TRX test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-trx-results
+          path: "**/*.trx"
+          retention-days: 30
+
+      - name: Upload failure artifacts (screenshots, traces, videos)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-failure-artifacts
+          path: |
+            ${{ runner.temp }}/pw-screenshots/**
+            ${{ runner.temp }}/pw-traces/**
+            ${{ runner.temp }}/pw-video/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ── API Tests ───────────────────────────────────────────────────────────────
+  api-tests:
+    name: API Tests (${{ github.event_name == 'pull_request' && 'Regression' || 'Smoke' }})
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_ENVIRONMENT: ci
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet packages
+        run: dotnet restore AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj
+
+      - name: Build
+        run: dotnet build AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj --no-restore --configuration Release
+
+      - name: Run API tests (push — Smoke / all on PR)
+        # All API tests are tagged Regression. On push, we run a targeted subset;
+        # on PR, we run everything. API tests have no browser overhead so the full
+        # suite is fast regardless.
+        run: |
+          dotnet run \
+            --project AutomationExercise.API.Tests/AutomationExercise.API.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            -- \
+            --report-trx \
+            --report-trx-filename api-results.trx
+
+      - name: Upload TRX test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-trx-results
+          path: "**/*.trx"
+          retention-days: 30
