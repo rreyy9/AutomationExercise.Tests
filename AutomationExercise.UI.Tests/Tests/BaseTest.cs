@@ -13,7 +13,6 @@ namespace AutomationExercise.UI.Tests
         protected IPage Page { get; private set; } = null!;
         protected Logger Log { get; private set; } = null!;
 
-        // MSTest injects this automatically — must be a public settable property
         public TestContext TestContext { get; set; } = null!;
 
         [TestInitialize]
@@ -28,23 +27,31 @@ namespace AutomationExercise.UI.Tests
 
             _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
-                Headless = config.Headless
+                Headless = config.Headless,
+                // --start-maximized tells the OS to maximise the window on launch.
+                // This has no effect in headless mode — headless uses the viewport size instead.
+                Args = new[] { "--start-maximized" }
             });
 
-            // Video is always recorded to a temp directory.
-            // If the test passes, the video file is deleted in cleanup.
-            // This is the only way Playwright supports "video on failure only".
             _videoDir = Path.Combine(Path.GetTempPath(), "pw-video", Guid.NewGuid().ToString());
             Directory.CreateDirectory(_videoDir);
 
             _context = await _browser.NewContextAsync(new BrowserNewContextOptions
             {
                 BaseURL = config.BaseUrl,
+
+                // ViewportSize must be null when using --start-maximized.
+                // A fixed viewport overrides the maximised window and you end up
+                // with a maximised window showing a smaller fixed-size page.
+                ViewportSize = ViewportSize.NoViewport,
+
                 RecordVideoDir = _videoDir,
+
+                // Video size is separate from viewport — keep a sensible fixed size
+                // so recorded video is always consistent regardless of screen resolution.
                 RecordVideoSize = new RecordVideoSize { Width = 1280, Height = 720 }
             });
 
-            // Start tracing — captured and saved on failure in cleanup
             await _context.Tracing.StartAsync(new TracingStartOptions
             {
                 Screenshots = true,
@@ -69,20 +76,18 @@ namespace AutomationExercise.UI.Tests
                 await CaptureFailureArtifacts();
             }
 
-            // Always stop tracing (must stop before context close)
             var tracePath = Path.Combine(Path.GetTempPath(), "pw-traces", $"{TestContext.TestName}.zip");
             Directory.CreateDirectory(Path.GetDirectoryName(tracePath)!);
 
             await _context.Tracing.StopAsync(new TracingStopOptions
             {
-                Path = passed ? null : tracePath   // only save trace on failure
+                Path = passed ? null : tracePath
             });
 
             await _context.CloseAsync();
             await _browser.CloseAsync();
             _playwright.Dispose();
 
-            // Clean up video files for passing tests
             if (passed && Directory.Exists(_videoDir))
             {
                 try { Directory.Delete(_videoDir, recursive: true); }
@@ -90,7 +95,6 @@ namespace AutomationExercise.UI.Tests
             }
             else if (!passed && Directory.Exists(_videoDir))
             {
-                // Attach video path to test output so it can be found
                 var videos = Directory.GetFiles(_videoDir, "*.webm");
                 foreach (var video in videos)
                 {
@@ -128,7 +132,6 @@ namespace AutomationExercise.UI.Tests
             }
             catch (Exception ex)
             {
-                // Screenshot failure must not mask the original test failure
                 Log.Error($"Screenshot capture failed: {ex.Message}");
             }
         }

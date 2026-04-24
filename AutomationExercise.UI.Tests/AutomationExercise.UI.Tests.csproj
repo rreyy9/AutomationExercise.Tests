@@ -28,11 +28,6 @@
 	<ItemGroup>
 		<Folder Include="Fixtures\" />
 		<Folder Include="TestData\" />
-		<Folder Include="Tests\Auth\" />
-		<Folder Include="Tests\Cart\" />
-		<Folder Include="Tests\Checkout\" />
-		<Folder Include="Tests\Contact\" />
-		<Folder Include="Tests\Products\" />
 	</ItemGroup>
 
 	<Target Name="InstallPlaywrightBrowsers" AfterTargets="Build">
