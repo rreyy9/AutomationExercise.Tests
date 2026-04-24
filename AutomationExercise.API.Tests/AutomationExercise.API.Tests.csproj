@@ -24,11 +24,4 @@
 		</None>
 	</ItemGroup>
 
-	<ItemGroup>
-		<Folder Include="Clients\" />
-		<Folder Include="Models\" />
-		<Folder Include="Tests\" />
-		<Folder Include="Utils\" />
-	</ItemGroup>
-
 </Project>
