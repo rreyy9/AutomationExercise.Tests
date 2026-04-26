@@ -15,6 +15,7 @@ on:
         options:
           - Smoke
           - Regression
+          - Account
           - All
       project:
         description: "Which project to run"
@@ -67,14 +68,20 @@ jobs:
           SUITE="${{ github.event.inputs.test_suite }}"
 
           if [ "$EVENT" = "pull_request" ]; then
-            # Full regression suite on every PR
+            # Full regression suite on every PR — excludes Account tests
             echo "filter=TestCategory=Regression|TestCategory=Smoke" >> $GITHUB_OUTPUT
             echo "label=Regression" >> $GITHUB_OUTPUT
           elif [ "$EVENT" = "workflow_dispatch" ] && [ "$SUITE" = "Regression" ]; then
             echo "filter=TestCategory=Regression|TestCategory=Smoke" >> $GITHUB_OUTPUT
             echo "label=Regression" >> $GITHUB_OUTPUT
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$SUITE" = "Account" ]; then
+            # Account tests only — requires live account creation/deletion.
+            # These are intentionally excluded from automatic triggers (push/PR)
+            # and only run when explicitly selected via manual dispatch.
+            echo "filter=TestCategory=Account" >> $GITHUB_OUTPUT
+            echo "label=Account" >> $GITHUB_OUTPUT
           elif [ "$EVENT" = "workflow_dispatch" ] && [ "$SUITE" = "All" ]; then
-            # Empty filter = run everything
+            # Everything including Account tests
             echo "filter=" >> $GITHUB_OUTPUT
             echo "label=All" >> $GITHUB_OUTPUT
           else
