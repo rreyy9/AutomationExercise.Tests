@@ -1,16 +1,20 @@
-﻿using AutomationExercise.API.Tests.Clients;
-using AutomationExercise.API.Tests.Models;
-
-namespace AutomationExercise.API.Tests.Tests
+﻿namespace AutomationExercise.API.Tests.Tests
 {
     [TestClass]
     [TestCategory("Regression")]
     public class SearchProductApiTests : BaseApiTest
     {
-        // ── POST /api/searchProduct — valid search ─────────────────────────────────
+        // ── API 5: POST To Search Product ─────────────────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/searchProduct
+        // Request Method: POST
+        // Request Parameter: search_product (For example: top, tshirt, jean)
+        // Response Code: 200
+        // Response JSON: Searched products list
 
         [TestMethod]
-        public async Task SearchProduct_WithValidTerm_ReturnsSuccessResponseCode()
+        [Description("API 5: POST To Search Product — verify responseCode 200")]
+        public async Task API5_PostToSearchProduct_ReturnsResponseCode200()
         {
             var response = await Api.PostFormAsync("/api/searchProduct", new Dictionary<string, string>
             {
@@ -20,11 +24,13 @@ namespace AutomationExercise.API.Tests.Tests
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithProducts>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 but got {body.ResponseCode}. Message: {body.Message}");
+                $"Expected responseCode 200 but got {body.ResponseCode}. " +
+                $"Message: {body.Message}");
         }
 
         [TestMethod]
-        public async Task SearchProduct_WithValidTerm_ReturnsMatchingResults()
+        [Description("API 5: POST To Search Product — verify searched products list is not empty")]
+        public async Task API5_PostToSearchProduct_ReturnsMatchingResults()
         {
             const string searchTerm = "dress";
 
@@ -40,7 +46,8 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         [TestMethod]
-        public async Task SearchProduct_WithValidTerm_ResultNamesContainSearchTerm()
+        [Description("API 5: POST To Search Product — verify result names contain search term")]
+        public async Task API5_PostToSearchProduct_ResultNamesContainSearchTerm()
         {
             const string searchTerm = "top";
 
@@ -62,7 +69,12 @@ namespace AutomationExercise.API.Tests.Tests
                 $"Found: {string.Join(", ", body.Products.Select(p => p.Name))}");
         }
 
-        // ── POST /api/searchProduct — missing parameter ────────────────────────────
+        // ── API 6: POST To Search Product without search_product parameter ────────
+        //
+        // API URL: https://automationexercise.com/api/searchProduct
+        // Request Method: POST
+        // Response Code: 400
+        // Response Message: Bad request, search_product parameter is missing in POST request.
         //
         // NOTE: This is a documented real-world quirk of this API.
         // The HTTP status code returned is 200, but the responseCode in the body
@@ -70,7 +82,8 @@ namespace AutomationExercise.API.Tests.Tests
         // body — relying on HTTP status alone would give a false pass here.
 
         [TestMethod]
-        public async Task SearchProduct_WithMissingParameter_ReturnsBadRequestInBody()
+        [Description("API 6: POST To Search Product without search_product parameter — verify responseCode 400")]
+        public async Task API6_PostToSearchProductWithoutParam_ReturnsResponseCode400()
         {
             // POST with an empty body — no search_product parameter provided
             var response = await Api.PostFormAsync("/api/searchProduct", new Dictionary<string, string>());
@@ -82,13 +95,16 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         [TestMethod]
-        public async Task SearchProduct_WithMissingParameter_ResponseMessageIsNotEmpty()
+        [Description("API 6: POST To Search Product without search_product parameter — verify response message")]
+        public async Task API6_PostToSearchProductWithoutParam_ReturnsCorrectErrorMessage()
         {
             var response = await Api.PostFormAsync("/api/searchProduct", new Dictionary<string, string>());
             var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
 
-            Assert.IsFalse(string.IsNullOrWhiteSpace(body.Message),
-                "Expected a descriptive error message when required parameter is missing");
+            Assert.AreEqual(
+                "Bad request, search_product parameter is missing in POST request.",
+                body.Message,
+                $"Expected specific error message but got '{body.Message}'");
         }
     }
 }

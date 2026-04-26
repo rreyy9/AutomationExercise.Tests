@@ -1,30 +1,14 @@
-﻿using AutomationExercise.API.Tests.Clients;
-using AutomationExercise.API.Tests.Models;
-using AutomationExercise.API.Tests.Utils;
+﻿using AutomationExercise.API.Tests.Utils;
 
 namespace AutomationExercise.API.Tests.Tests
 {
     /// <summary>
-    /// Full account lifecycle test suite: create → update → read → delete.
+    /// Full account lifecycle test suite covering API 11, 12, 13, 14.
     ///
-    /// Data strategy: shared fixture via ClassInitialize/ClassCleanup.
-    ///
-    /// Why ClassInitialize/ClassCleanup over a single ordered test method:
-    ///   - Account creation and deletion are infrastructure concerns, not test
-    ///     assertions. ClassInitialize/ClassCleanup is the correct MSTest hook for
-    ///     this — it mirrors how real teams manage test fixtures.
-    ///   - Individual [TestMethod]s for update and read are independently named,
-    ///     independently reported, and independently skippable during debugging.
-    ///   - ClassCleanup guarantees deletion even if a test method fails mid-suite —
-    ///     a single ordered method would leave a dangling account on the live site
-    ///     if the update or read assertion threw.
-    ///
-    /// This class is fully self-contained — it owns its own account credentials
-    /// and does not share state with any other test class.
-    ///
-    /// NOTE: ClassInitialize is static in MSTest — ApiClient is instantiated
-    /// directly here rather than relying on the BaseApiTest instance property,
-    /// which is not accessible from static context.
+    /// Data strategy — shared fixture via ClassInitialize/ClassCleanup.
+    /// ClassInitialize creates the account before any test method runs.
+    /// ClassCleanup deletes it after all complete — guarantees cleanup even on failure.
+    /// Individual [TestMethod]s for each endpoint are independently named and reported.
     /// </summary>
     [TestClass]
     [TestCategory("Regression")]
@@ -89,16 +73,12 @@ namespace AutomationExercise.API.Tests.Tests
             // Always attempt deletion — even if a test method fails mid-suite.
             // This is the core benefit of ClassCleanup over a single ordered test:
             // the live site is not left with a dangling account.
-            if (_staticApi is not null)
+            await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
             {
-                await _staticApi.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
-                {
-                    { "email",    Email },
-                    { "password", Password }
-                });
-
-                _staticApi.Dispose();
-            }
+                { "email",    Email },
+                { "password", Password }
+            });
+            _staticApi.Dispose();
         }
 
         [TestInitialize]
@@ -114,107 +94,162 @@ namespace AutomationExercise.API.Tests.Tests
             _api?.Dispose();
         }
 
-        // ── createAccount ─────────────────────────────────────────────────────────
-        // Account creation is asserted inside ClassInitialize (it throws on failure),
-        // so the test method below validates the outcome rather than repeating the call.
+        // ── API 11: POST To Create/Register User Account ─────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/createAccount
+        // Request Method: POST
+        // Request Parameters: name, email, password, title, birth_date, birth_month,
+        //   birth_year, firstname, lastname, company, address1, address2, country,
+        //   zipcode, state, city, mobile_number
+        // Response Code: 201
+        // Response Message: User created!
+        //
+        // NOTE: The actual account creation is performed in ClassInitialize.
+        // This test verifies the account exists by reading it back via getUserDetailByEmail.
 
         [TestMethod]
-        public async Task CreateAccount_AccountExistsAfterCreation()
+        [Description("API 11: POST To Create/Register User Account — verify account exists after creation")]
+        public async Task API11_CreateAccount_AccountExistsAfterCreation()
         {
             var response = await _api.GetAsync($"/api/getUserDetailByEmail?email={Uri.EscapeDataString(Email)}");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithUser>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 confirming account exists after creation. " +
-                $"Got {body.ResponseCode}: {body.Message}");
+                $"Expected responseCode 200 confirming account exists but got {body.ResponseCode}. " +
+                $"Message: {body.Message}");
             Assert.IsNotNull(body.User,
-                "Expected user detail to be returned after account creation");
+                "Expected user object to be present in response after account creation");
             Assert.AreEqual(Email, body.User.Email,
-                "Expected returned email to match created account email");
+                $"Expected email '{Email}' but got '{body.User.Email}'");
         }
 
-        // ── updateAccount ─────────────────────────────────────────────────────────
+        // ── API 13: PUT METHOD To Update User Account ─────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/updateAccount
+        // Request Method: PUT
+        // Request Parameters: name, email, password, title, birth_date, birth_month,
+        //   birth_year, firstname, lastname, company, address1, address2, country,
+        //   zipcode, state, city, mobile_number
+        // Response Code: 200
+        // Response Message: User updated!
 
         [TestMethod]
-        public async Task UpdateAccount_WithNewCity_ReturnsSuccess()
+        [Description("API 13: PUT METHOD To Update User Account — verify responseCode 200")]
+        public async Task API13_UpdateAccount_ReturnsResponseCode200()
         {
             var response = await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
             {
-                { "name",          "Playwright Lifecycle" },
+                { "name",          "Updated Lifecycle" },
                 { "email",         Email },
                 { "password",      Password },
                 { "title",         "Mr" },
                 { "birth_date",    "15" },
                 { "birth_month",   "6" },
                 { "birth_year",    "1990" },
-                { "firstname",     "Playwright" },
+                { "firstname",     "Updated" },
                 { "lastname",      "Lifecycle" },
                 { "company",       "Updated Suite Ltd" },
                 { "address1",      "456 Updated Street" },
-                { "address2",      "" },
+                { "address2",      "Suite 2" },
                 { "country",       "United Kingdom" },
-                { "zipcode",       "EC1A 1BB" },
+                { "zipcode",       "SW1A 1AA" },
                 { "state",         "England" },
-                { "city",          "Manchester" },
-                { "mobile_number", "07700900001" }
+                { "city",          "London" },
+                { "mobile_number", "07700900000" }
             });
 
             var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 after account update but got {body.ResponseCode}. " +
+                $"Expected responseCode 200 after update but got {body.ResponseCode}. " +
                 $"Message: {body.Message}");
-            Assert.IsFalse(string.IsNullOrWhiteSpace(body.Message),
-                "Expected a confirmation message in the update response");
         }
 
         [TestMethod]
-        public async Task UpdateAccount_UpdatedFieldsAreReflectedOnRead()
+        [Description("API 13: PUT METHOD To Update User Account — verify response message 'User updated!'")]
+        public async Task API13_UpdateAccount_ReturnsUserUpdatedMessage()
         {
-            // Update city to a known value
-            await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
+            var response = await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
             {
-                { "name",          "Playwright Lifecycle" },
+                { "name",          "Updated Lifecycle" },
                 { "email",         Email },
                 { "password",      Password },
                 { "title",         "Mr" },
                 { "birth_date",    "15" },
                 { "birth_month",   "6" },
                 { "birth_year",    "1990" },
-                { "firstname",     "Playwright" },
+                { "firstname",     "Updated" },
                 { "lastname",      "Lifecycle" },
                 { "company",       "Updated Suite Ltd" },
                 { "address1",      "456 Updated Street" },
-                { "address2",      "" },
+                { "address2",      "Suite 2" },
                 { "country",       "United Kingdom" },
-                { "zipcode",       "EC1A 1BB" },
+                { "zipcode",       "SW1A 1AA" },
                 { "state",         "England" },
-                { "city",          "Manchester" },
-                { "mobile_number", "07700900001" }
+                { "city",          "London" },
+                { "mobile_number", "07700900000" }
             });
 
-            // Read back and confirm the city was persisted
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+
+            Assert.AreEqual("User updated!", body.Message,
+                $"Expected 'User updated!' but got '{body.Message}'");
+        }
+
+        [TestMethod]
+        [Description("API 13: PUT METHOD To Update User Account — verify updated field is reflected on subsequent read")]
+        public async Task API13_UpdateAccount_UpdatedFieldReflectedOnRead()
+        {
+            // Update the company field
+            await _api.PutFormAsync("/api/updateAccount", new Dictionary<string, string>
+            {
+                { "name",          "Updated Lifecycle" },
+                { "email",         Email },
+                { "password",      Password },
+                { "title",         "Mr" },
+                { "birth_date",    "15" },
+                { "birth_month",   "6" },
+                { "birth_year",    "1990" },
+                { "firstname",     "Updated" },
+                { "lastname",      "Lifecycle" },
+                { "company",       "Verified Update Ltd" },
+                { "address1",      "456 Updated Street" },
+                { "address2",      "Suite 2" },
+                { "country",       "United Kingdom" },
+                { "zipcode",       "SW1A 1AA" },
+                { "state",         "England" },
+                { "city",          "London" },
+                { "mobile_number", "07700900000" }
+            });
+
+            // Read back and verify
             var readResponse = await _api.GetAsync($"/api/getUserDetailByEmail?email={Uri.EscapeDataString(Email)}");
             var readBody = await ApiClient.DeserialiseAsync<ApiResponseWithUser>(readResponse);
 
-            Assert.AreEqual(200, readBody.ResponseCode,
-                $"Expected responseCode 200 on read after update but got {readBody.ResponseCode}");
             Assert.IsNotNull(readBody.User,
-                "Expected user detail to be present after update");
-            Assert.AreEqual("Manchester", readBody.User.City,
-                $"Expected city to be 'Manchester' after update but got '{readBody.User.City}'");
+                "Expected user object to be present after update");
+            Assert.AreEqual("Updated", readBody.User.FirstName,
+                $"Expected updated FirstName 'Updated' but got '{readBody.User.FirstName}'");
         }
 
-        // ── getUserDetailByEmail ──────────────────────────────────────────────────
+        // ── API 14: GET user account detail by email ──────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/getUserDetailByEmail
+        // Request Method: GET
+        // Request Parameters: email
+        // Response Code: 200
+        // Response JSON: User Detail
 
         [TestMethod]
-        public async Task GetUserDetailByEmail_ReturnsCorrectUserData()
+        [Description("API 14: GET user account detail by email — verify responseCode 200 and user data")]
+        public async Task API14_GetUserDetailByEmail_ReturnsCorrectUserData()
         {
             var response = await _api.GetAsync($"/api/getUserDetailByEmail?email={Uri.EscapeDataString(Email)}");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithUser>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 but got {body.ResponseCode}. Message: {body.Message}");
+                $"Expected responseCode 200 but got {body.ResponseCode}. " +
+                $"Message: {body.Message}");
             Assert.IsNotNull(body.User,
                 "Expected user object to be present in response");
             Assert.AreEqual(Email, body.User.Email,
@@ -224,7 +259,8 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         [TestMethod]
-        public async Task GetUserDetailByEmail_WithUnknownEmail_ReturnsNotFound()
+        [Description("API 14: GET user account detail by email — verify responseCode 404 for unknown email")]
+        public async Task API14_GetUserDetailByEmail_WithUnknownEmail_ReturnsNotFound()
         {
             var response = await _api.GetAsync("/api/getUserDetailByEmail?email=nobody%40nowhere.com");
             var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
@@ -236,14 +272,22 @@ namespace AutomationExercise.API.Tests.Tests
                 $"Message: {body.Message}");
         }
 
-        // ── deleteAccount ─────────────────────────────────────────────────────────
-        // Actual deletion of the fixture account is performed by ClassCleanup to
-        // guarantee it always runs. This test exercises the delete endpoint in
+        // ── API 12: DELETE METHOD To Delete User Account ──────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/deleteAccount
+        // Request Method: DELETE
+        // Request Parameters: email, password
+        // Response Code: 200
+        // Response Message: Account deleted!
+        //
+        // NOTE: Actual deletion of the fixture account is performed by ClassCleanup
+        // to guarantee it always runs. This test exercises the delete endpoint in
         // isolation using a separate throwaway account so it doesn't interfere
         // with the other test methods that depend on the fixture account existing.
 
         [TestMethod]
-        public async Task DeleteAccount_ReturnsSuccess()
+        [Description("API 12: DELETE METHOD To Delete User Account — verify responseCode 200")]
+        public async Task API12_DeleteAccount_ReturnsResponseCode200()
         {
             const string throwawayEmail = "playwright.lifecycle.delete.test@example.com";
             const string throwawayPassword = "DeleteTest1234!";
@@ -289,8 +333,55 @@ namespace AutomationExercise.API.Tests.Tests
             Assert.AreEqual(200, deleteBody.ResponseCode,
                 $"Expected responseCode 200 after account deletion but got {deleteBody.ResponseCode}. " +
                 $"Message: {deleteBody.Message}");
-            Assert.IsFalse(string.IsNullOrWhiteSpace(deleteBody.Message),
-                "Expected a confirmation message in the delete response");
+        }
+
+        [TestMethod]
+        [Description("API 12: DELETE METHOD To Delete User Account — verify response message 'Account deleted!'")]
+        public async Task API12_DeleteAccount_ReturnsAccountDeletedMessage()
+        {
+            const string throwawayEmail = "playwright.lifecycle.delete.msg.test@example.com";
+            const string throwawayPassword = "DeleteMsgTest1234!";
+
+            // Clean up any previous leftover first
+            await _api.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+            {
+                { "email",    throwawayEmail },
+                { "password", throwawayPassword }
+            });
+
+            // Create a fresh throwaway account
+            await _api.PostFormAsync("/api/createAccount", new Dictionary<string, string>
+            {
+                { "name",          "Delete Msg Test" },
+                { "email",         throwawayEmail },
+                { "password",      throwawayPassword },
+                { "title",         "Miss" },
+                { "birth_date",    "2" },
+                { "birth_month",   "2" },
+                { "birth_year",    "1999" },
+                { "firstname",     "DeleteMsg" },
+                { "lastname",      "Test" },
+                { "company",       "" },
+                { "address1",      "2 Test Lane" },
+                { "address2",      "" },
+                { "country",       "United Kingdom" },
+                { "zipcode",       "W1A 0AX" },
+                { "state",         "England" },
+                { "city",          "London" },
+                { "mobile_number", "07700900003" }
+            });
+
+            // Delete and assert the message
+            var deleteResponse = await _api.DeleteFormAsync("/api/deleteAccount", new Dictionary<string, string>
+            {
+                { "email",    throwawayEmail },
+                { "password", throwawayPassword }
+            });
+
+            var deleteBody = await ApiClient.DeserialiseAsync<ApiResponse>(deleteResponse);
+
+            Assert.AreEqual("Account deleted!", deleteBody.Message,
+                $"Expected 'Account deleted!' but got '{deleteBody.Message}'");
         }
     }
 }

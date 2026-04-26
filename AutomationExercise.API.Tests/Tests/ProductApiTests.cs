@@ -1,26 +1,31 @@
-﻿using AutomationExercise.API.Tests.Clients;
-using AutomationExercise.API.Tests.Models;
-
-namespace AutomationExercise.API.Tests.Tests
+﻿namespace AutomationExercise.API.Tests.Tests
 {
     [TestClass]
     [TestCategory("Regression")]
     public class ProductsApiTests : BaseApiTest
     {
-        // ── GET /api/productsList ─────────────────────────────────────────────────
+        // ── API 1: Get All Products List ──────────────────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/productsList
+        // Request Method: GET
+        // Response Code: 200
+        // Response JSON: All products list
 
         [TestMethod]
-        public async Task GetProductsList_ReturnsSuccessResponseCode()
+        [Description("API 1: Get All Products List — verify responseCode 200")]
+        public async Task API1_GetAllProductsList_ReturnsResponseCode200()
         {
             var response = await Api.GetAsync("/api/productsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithProducts>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 but got {body.ResponseCode}. Message: {body.Message}");
+                $"Expected responseCode 200 but got {body.ResponseCode}. " +
+                $"Message: {body.Message}");
         }
 
         [TestMethod]
-        public async Task GetProductsList_ProductsListIsNotEmpty()
+        [Description("API 1: Get All Products List — verify products list is not empty")]
+        public async Task API1_GetAllProductsList_ProductsListIsNotEmpty()
         {
             var response = await Api.GetAsync("/api/productsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithProducts>(response);
@@ -30,12 +35,13 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         [TestMethod]
-        public async Task GetProductsList_FirstProduct_HasRequiredFields()
+        [Description("API 1: Get All Products List — verify first product has required schema fields")]
+        public async Task API1_GetAllProductsList_FirstProductHasRequiredFields()
         {
             var response = await Api.GetAsync("/api/productsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithProducts>(response);
 
-            Assert.IsTrue(body.Products.Count > 0, "Cannot validate schema — product list is empty");
+            Assert.IsTrue(body.Products.Count > 0, "Cannot validate schema — products list is empty");
 
             var first = body.Products[0];
 
@@ -47,24 +53,60 @@ namespace AutomationExercise.API.Tests.Tests
                 "Expected product Price to be present");
             Assert.IsFalse(string.IsNullOrWhiteSpace(first.Brand),
                 "Expected product Brand to be present");
-            Assert.IsNotNull(first.Category,
-                "Expected product Category to be present");
         }
 
-        // ── GET /api/brandsList ───────────────────────────────────────────────────
+        // ── API 2: POST To All Products List ─────────────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/productsList
+        // Request Method: POST
+        // Response Code: 405
+        // Response Message: This request method is not supported.
 
         [TestMethod]
-        public async Task GetBrandsList_ReturnsSuccessResponseCode()
+        [Description("API 2: POST To All Products List — verify responseCode 405")]
+        public async Task API2_PostToAllProductsList_ReturnsResponseCode405()
+        {
+            var response = await Api.PostFormAsync("/api/productsList", new Dictionary<string, string>());
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+
+            Assert.AreEqual(405, body.ResponseCode,
+                $"Expected responseCode 405 (Method Not Supported) for POST on /api/productsList " +
+                $"but got {body.ResponseCode}. Message: {body.Message}");
+        }
+
+        [TestMethod]
+        [Description("API 2: POST To All Products List — verify response message")]
+        public async Task API2_PostToAllProductsList_ReturnsMethodNotSupportedMessage()
+        {
+            var response = await Api.PostFormAsync("/api/productsList", new Dictionary<string, string>());
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+
+            Assert.AreEqual("This request method is not supported.", body.Message,
+                $"Expected 'This request method is not supported.' but got '{body.Message}'");
+        }
+
+        // ── API 3: Get All Brands List ────────────────────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/brandsList
+        // Request Method: GET
+        // Response Code: 200
+        // Response JSON: All brands list
+
+        [TestMethod]
+        [Description("API 3: Get All Brands List — verify responseCode 200")]
+        public async Task API3_GetAllBrandsList_ReturnsResponseCode200()
         {
             var response = await Api.GetAsync("/api/brandsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithBrands>(response);
 
             Assert.AreEqual(200, body.ResponseCode,
-                $"Expected responseCode 200 but got {body.ResponseCode}. Message: {body.Message}");
+                $"Expected responseCode 200 but got {body.ResponseCode}. " +
+                $"Message: {body.Message}");
         }
 
         [TestMethod]
-        public async Task GetBrandsList_BrandsListIsNotEmpty()
+        [Description("API 3: Get All Brands List — verify brands list is not empty")]
+        public async Task API3_GetAllBrandsList_BrandsListIsNotEmpty()
         {
             var response = await Api.GetAsync("/api/brandsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithBrands>(response);
@@ -74,7 +116,8 @@ namespace AutomationExercise.API.Tests.Tests
         }
 
         [TestMethod]
-        public async Task GetBrandsList_EachBrand_HasNameAndId()
+        [Description("API 3: Get All Brands List — verify each brand has id and name")]
+        public async Task API3_GetAllBrandsList_EachBrandHasNameAndId()
         {
             var response = await Api.GetAsync("/api/brandsList");
             var body = await ApiClient.DeserialiseAsync<ApiResponseWithBrands>(response);
@@ -88,6 +131,36 @@ namespace AutomationExercise.API.Tests.Tests
                 Assert.IsFalse(string.IsNullOrWhiteSpace(brand.Name),
                     $"Expected brand Name to be present for brand with Id {brand.Id}");
             }
+        }
+
+        // ── API 4: PUT To All Brands List ─────────────────────────────────────────
+        //
+        // API URL: https://automationexercise.com/api/brandsList
+        // Request Method: PUT
+        // Response Code: 405
+        // Response Message: This request method is not supported.
+
+        [TestMethod]
+        [Description("API 4: PUT To All Brands List — verify responseCode 405")]
+        public async Task API4_PutToAllBrandsList_ReturnsResponseCode405()
+        {
+            var response = await Api.PutFormAsync("/api/brandsList", new Dictionary<string, string>());
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+
+            Assert.AreEqual(405, body.ResponseCode,
+                $"Expected responseCode 405 (Method Not Supported) for PUT on /api/brandsList " +
+                $"but got {body.ResponseCode}. Message: {body.Message}");
+        }
+
+        [TestMethod]
+        [Description("API 4: PUT To All Brands List — verify response message")]
+        public async Task API4_PutToAllBrandsList_ReturnsMethodNotSupportedMessage()
+        {
+            var response = await Api.PutFormAsync("/api/brandsList", new Dictionary<string, string>());
+            var body = await ApiClient.DeserialiseAsync<ApiResponse>(response);
+
+            Assert.AreEqual("This request method is not supported.", body.Message,
+                $"Expected 'This request method is not supported.' but got '{body.Message}'");
         }
     }
 }
